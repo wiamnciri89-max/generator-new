@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur WireGuard</title>
+    <link rel="stylesheet" href="{{url_for('static', filename='style.css')}}">
+</head>
+<body>
+
+    <h1>Générateur WireGuard</h1>
+
+    <!-- Formulaire utilisateur -->
+    <form method="POST" action="/create-user">
+        <label for="firstname">Prénom</label>
+        <input type="text" id="firstname" name="firstname" maxlength="20">
+        <label for="lastname">Nom</label>
+        <input type="text" id="lastname" name="lastname" maxlength="20">
+        <label for="nputEntreprise">Entreprise</label>
+        <input type="text" id="nputEntreprise" name="nputEntreprise" required>
+        <button type="submit" class="btn btn-primary w-100">
+            <i class="fa-solid fa-plus me-1"></i>Créer l'utilisateur
+        </button>
+    </form>
+
+    <!-- Formulaire tunnel -->
+    <form method="POST" action="/create-tunnel">
+        <label>Utilisateurs</label>
+        <select name="user_id">
+            {% for user in users %}
+            <option value="{{user[0]}}">
+                {{ user[1] }} {{ user[2] }}
+            </option>
+            {% endfor %}
+        </select>
+        
+        <label>Adresse IP</label>
+        <input type="text" name="adresse" placeholder="10.0.0.2/32">
+
+        <label>DNS</label>
+        <input type="text" name="DNS" placeholder="1.1.1.1">
+
+        <label>Public Key</label>
+        <input type="text" name="public_key" placeholder="Base64... (44 caractères) "> 
+        
+        <label>Allowed IPs</label>
+        <input type="text" name="Allowed" placeholder="0.0.0.0/0,::/0">
+
+        <label>Endpoint</label>
+        <input type="text" name="Endpoint" placeholder="vpm.exemple.com:51820">
+
+        <label>Keepalive</label>
+        <input type="number" name="Keepalive">
+
+        <button type="submit">Créer le tunnel</button>
+        
+    </form>
+
+<!-- Tableau des tunnels -->
+<table>
+    <thead>
+        <tr>
+            <th>Nom</th>
+            <th>Adresse</th>
+            <th>DNS</th>
+            <th>Public Key</th>
+            <th>Allowed IPs</th>
+            <th>Endpoint</th>
+            <th>Keepalive</th>
+            <th>Statut</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tunnel in tunnels %}
+        <tr>
+            <td>{{ tunnel[2] }}</td>
+            <td>{{ tunnel[3] }}</td>
+            <td>{{ tunnel[4] }}</td>
+            <td>{{ tunnel[6] }}</td>
+            <td>{{ tunnel[7] }}</td>
+            <td>{{ tunnel[8] }}</td>
+            <td>{{ tunnel[9] }}</td>
+            <td>
+                {% if tunnel[10] == 1 %}
+                Actif
+                {% else %}
+                Inactif
+                {% endif %}
+            </td>
+            <td>
+                <!-- Boutons actions -->
+                <a href="/download/{{ tunnel[0] }}">Téléchargement</a>
+                <a href="/delete/{{ tunnel[0] }}">Supprimer</a>
+                <a href="/modify/{{ tunnel[0] }}">Modifier</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>
