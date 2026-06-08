@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 import base64
 
 import os
+from flask import send_file
 
 app = Flask(__name__)
 
@@ -112,3 +113,19 @@ PersistentKeepalive = {keepalive}"""
     # 6. Rediriger
     return redirect(url_for("visite"))
 
+@app.route("/download/<int:id>")
+def download(id):
+    #recupérer le nom du fichier depuis le base 
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT fichierConf FROM tunnel WHERE idTunnel = %s",(id,))
+    tunnel = cursor.fetchone()
+    db.close()
+
+    #envoyer le fichier 
+    fichier = tunnel[0].strip()  
+    chemin = os.path.join("configs", fichier)  
+    return send_file(chemin, as_attachment=True)
+
+if __name__ == "__main__":
+    app.run(debug=True)
