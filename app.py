@@ -17,6 +17,37 @@ def get_db():
     return connection
 
 
+# Fonction : Valider l'adresse IP
+def valider_ip(adresse):
+    # Sépare l'adresse du masque 
+    parties = adresse.split("/")
+    if len(parties) != 2:
+        return False
+    ip = parties[0]
+    masque = parties[1]
+
+    if not masque.isdigit():
+        return False
+
+    if int(masque) < 0 or int(masque) > 32:
+        return False
+    
+    # Sépare les 4 blocs
+    blocs = ip.split(".")
+    
+    # Vérifie qu'il y a exactement 4 blocs
+    if len(blocs) != 4:
+        return False
+    
+    # Vérifie chaque bloc
+    for bloc in blocs:
+        if not bloc.isdigit():  # doit être un nombre
+            return False
+        if int(bloc) < 0 or int(bloc) > 255:
+            return False
+    return True
+
+
 # Fonction : Générer les clés WireGuard
 def generate_wireguard_keys():
     # Générer la clé privée
@@ -38,7 +69,7 @@ def generate_wireguard_keys():
 
 # Fonction : Générer le fichier .conf
 def generate_conf(private_key, adresse, dns, public_key, allowedIPs, endpoint):
-    # 3. Générer le fichier .conf
+    # Générer le fichier .conf
     return f"""[Interface]
 PrivateKey = {private_key}
 Address = {adresse}
@@ -50,7 +81,9 @@ AllowedIPs = {allowedIPs}
 Endpoint = {endpoint}
 PersistentKeepalive = 25
 """
-#Page prin
+
+
+# Page principale
 @app.route("/")
 def visite():
     db = get_db()
@@ -70,7 +103,7 @@ def visite():
     else:
         cursor.execute("SELECT * FROM utilisateur")
 
-    users = cursor.fetchall()  # ← manquait !
+    users = cursor.fetchall()
 
     # Récupère les tunnels liés aux utilisateurs trouvés
     if recherche:
@@ -112,28 +145,27 @@ def visite():
     )
 
 
-
 # Création utilisateur
 @app.route("/create-user", methods=["POST"])
 def create_user():
 
     # 1. Récupérer les données
-    prenom     = request.form.get("firstname")  
-    nom        = request.form.get("lastname")  
-    entreprise = request.form.get("nputEntreprise") 
+    prenom     = request.form.get("firstname")
+    nom        = request.form.get("lastname")
+    entreprise = request.form.get("nputEntreprise")
 
     # 2. Insérer en base
     db = get_db()
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO utilisateur (nom, prenom, entreprise) VALUES (%s, %s, %s)",
-        (nom, prenom, entreprise) 
+        (nom, prenom, entreprise)
     )
     db.commit()
     db.close()
 
     # 3. Rediriger
-    return redirect(url_for("visite")) 
+    return redirect(url_for("visite"))
 
 
 # Création tunnel
@@ -144,35 +176,36 @@ def create_tunnel():
     user_id    = request.form.get("user_id")
     adresse    = request.form.get("adresse")
     dns        = request.form.get("DNS")
-    public_key_serveur = request.form.get("public_key")  
-    allowedIPs = request.form.get("allowedIPs")
+    allowedIPs = request.form.get("allowed_ips") 
     endpoint   = request.form.get("Endpoint")
-    keepalive  = request.form.get("Keepalive")
 
-    #Valider l'adresse 
-    if not valide_ip(adresse):
-
+    # Valider l'adresse AVANT d'insérer
+    if not valider_ip(adresse):
         db = get_db()
         cursor = db.cursor()
-
         cursor.execute("SELECT * FROM utilisateur")
         users = cursor.fetchall()
-
-        cursor.execute("SELECT * FROM tunnel")
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey, 
+                   publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
         tunnels = cursor.fetchall()
-
         db.close()
 
-        return render_template("index.html",
-            erreur="Adresse IP invalide !",
+        return render_template(
+            "index.html",
+            erreur="Adresse IP invalide ! Format attendu : 0-255.0-255.0-255.0-255/0-32",
             users=users,
-            tunnels=tunnels
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
         )
 
     # Générer les clés WireGuard
     private_key, public_key = generate_wireguard_keys()
 
-    # 3. Générer le fichier .conf
+    # Générer le fichier .conf
     conf_content = generate_conf(
         private_key,
         adresse,
@@ -182,42 +215,42 @@ def create_tunnel():
         endpoint,
     )
 
-    # 4. Sauvegarder le fichier
+    # Sauvegarder le fichier
     os.makedirs("configs", exist_ok=True)
     nom_fichier = f"tunnel_{user_id}.conf"
     chemin = os.path.join("configs", nom_fichier)
     with open(chemin, "w") as f:
         f.write(conf_content)
 
-    # 5. Insérer en base
+    # Insérer en base
     db = get_db()
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO tunnel (idUti, adresse, dns, privateKey, publicKey, allowedIPs, endpoint, keepalive, fichierConf) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (user_id, adresse, dns, private_key, public_key, allowedIPs, endpoint, keepalive, nom_fichier)
+        (user_id, adresse, dns, private_key, public_key, allowedIPs, endpoint, 25, nom_fichier)
     )
     db.commit()
     db.close()
 
-    # 6. Rediriger
+    # Rediriger
     return redirect(url_for("visite"))
+
 
 # Bouton télécharger
 @app.route("/download/<int:id>")
 def download(id):
 
-    # Récupérer le nom du fichier depuis la base 
+    # Récupérer le nom du fichier depuis la base
     db = get_db()
     cursor = db.cursor()
-    cursor.execute("SELECT fichierConf FROM tunnel WHERE idTunnel = %s",(id,))
+    cursor.execute("SELECT fichierConf FROM tunnel WHERE idTunnel = %s", (id,))
     tunnel = cursor.fetchone()
     db.close()
 
-    # Envoyer le fichier 
-    fichier = tunnel[0].strip()  
-    chemin = os.path.join("configs", fichier)  
+    # Envoyer le fichier
+    fichier = tunnel[0].strip()
+    chemin = os.path.join("configs", fichier)
     return send_file(chemin, as_attachment=True)
-
 
 
 # Bouton supprimer
@@ -254,10 +287,10 @@ def delete(id):
 @app.route("/modify/<int:id>", methods=["POST"])
 def modify(id):
 
-    adresse   = request.form.get("adresse")
-    dns       = request.form.get("DNS")
-    allowedIPs= request.form.get("allowedIPs")
-    endpoint  = request.form.get("Endpoint")    
+    adresse    = request.form.get("adresse")
+    dns        = request.form.get("DNS")
+    allowedIPs = request.form.get("allowed_ips")
+    endpoint   = request.form.get("Endpoint")
 
     db = get_db()
     cursor = db.cursor()
@@ -269,34 +302,6 @@ def modify(id):
     db.close()
 
     return redirect(url_for("visite"))
-#conditions à l'utilisateurs
-def valide_ip(adresse):
-    #séparer l'adresse du masque 
-    parties = adresse.split("/")
-    if len(parties) != 2:
-        return False
-    
-    ip = parties[0]
-    masque = parties[1]
-    #séparer les 4 blocs
-    if not masque.isdigit():
-        return False
-    
-    if int(masque) < 0 or int(masque) > 32:
-        return False
-    
-    blocs = ip.split(".")
-    #vérifie qu'il y  a excatement 4 blocs
-    if len(blocs) != 4:
-        return False
-    
-    #vérifie charque bloc 
-    for bloc in blocs :
-        if not bloc.isdigit(): #doit etre un nombre
-            return False
-        if int(bloc) < 0 or int(bloc) > 255 :
-            return False
-    return True           
 
 
 # Lancer l'application
