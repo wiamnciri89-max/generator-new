@@ -1,23 +1,119 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_file
 import pymysql
-
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 import base64
-
 import os
-from flask import send_file
 
 app = Flask(__name__)
 
+# Connexion à la base de données
 def get_db():
     connection = pymysql.connect(
         host="localhost",
         user="root",
         passwd="",
-        database="wireguard_db"
+        database="wireguard_db" 
     )
     return connection
 
+
+# Fonction : Générer les clés WireGuard
+def generate_wireguard_keys():
+    # Générer la clé privée
+    private_key_obj = X25519PrivateKey.generate()  # crée une clé privée X25519
+    public_key_obj  = private_key_obj.public_key() # La clé publique est calculée automatiquement à partir de la clé privée
+
+    # Convertir la clé privée en Base64
+    private_key = base64.b64encode(                # convertit en Base64
+        private_key_obj.private_bytes_raw()        # récupère la clé brute (32 octets)
+    ).decode("utf-8")                              # transforme les bytes en texte lisible
+
+    # Convertir la clé publique en Base64
+    public_key = base64.b64encode(
+        public_key_obj.public_bytes_raw()
+    ).decode("utf-8")
+
+    return private_key, public_key
+
+
+# Fonction : Générer le fichier .conf
+def generate_conf(private_key, adresse, dns, public_key, allowedIPs, endpoint):
+    # 3. Générer le fichier .conf
+    return f"""[Interface]
+PrivateKey = {private_key}
+Address = {adresse}
+DNS = {dns}
+
+[Peer]
+PublicKey = {public_key}
+AllowedIPs = {allowedIPs}
+Endpoint = {endpoint}
+PersistentKeepalive = 25
+"""
+#Page prin
+@app.route("/")
+def visite():
+    db = get_db()
+    cursor = db.cursor()
+
+    # Récupère le mot recherché dans l'URL
+    recherche = request.args.get("recherche", "").strip()
+
+    # Récupère les utilisateurs
+    if recherche:
+        cursor.execute("""
+            SELECT * FROM utilisateur
+            WHERE nom LIKE %s
+            OR prenom LIKE %s
+            OR entreprise LIKE %s
+        """, (f"%{recherche}%", f"%{recherche}%", f"%{recherche}%"))
+    else:
+        cursor.execute("SELECT * FROM utilisateur")
+
+    users = cursor.fetchall()  # ← manquait !
+
+    # Récupère les tunnels liés aux utilisateurs trouvés
+    if recherche:
+        cursor.execute("""
+            SELECT t.idTunnel, t.idUti, t.adresse, t.dns, t.privateKey, 
+                t.publicKey, t.allowedIPs, t.endpoint, t.keepalive, t.fichierConf
+            FROM tunnel t
+            JOIN utilisateur u ON t.idUti = u.idUti
+            WHERE u.nom LIKE %s
+            OR u.prenom LIKE %s
+            OR u.entreprise LIKE %s
+        """, (f"%{recherche}%", f"%{recherche}%", f"%{recherche}%"))
+    else:
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey, 
+                publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
+
+    tunnels = cursor.fetchall()
+    db.close()
+
+    # Gestion du bouton "modifier"
+    modifier_id = request.args.get("modifier")
+    tunnel_a_modifier = None
+
+    if modifier_id:
+        for t in tunnels:
+            if t[0] == int(modifier_id):
+                tunnel_a_modifier = t
+                break
+
+    return render_template(
+        "index.html",
+        users=users,
+        tunnels=tunnels,
+        tunnel_a_modifier=tunnel_a_modifier,
+        recherche=recherche
+    )
+
+
+
+# Création utilisateur
 @app.route("/create-user", methods=["POST"])
 def create_user():
 
@@ -39,22 +135,8 @@ def create_user():
     # 3. Rediriger
     return redirect(url_for("visite")) 
 
-@app.route("/")
-def visite():    #la fonction qui s'exécute pour visiter la page
-    db = get_db() #ouvre la connexion MySQL
-    cursor = db.cursor() #cursol:l'outil qui envoie les requetes SQL
 
-    #Récupère les utilisateurs 
-    cursor.execute("SELECT * FROM utilisateur")
-    users = cursor.fetchall() #affiche les resultat
-
-    #Récupère les tunnels 
-    cursor.execute("SELECT * FROM tunnel") 
-    tunnels = cursor.fetchall()
-
-    db.close()
-    return render_template("index.html", users=users, tunnels=tunnels)
-
+# Création tunnel
 @app.route("/create-tunnel", methods=["POST"])
 def create_tunnel():
 
@@ -62,36 +144,43 @@ def create_tunnel():
     user_id    = request.form.get("user_id")
     adresse    = request.form.get("adresse")
     dns        = request.form.get("DNS")
-    public_key_serveur = request.form.get("public_key")
-    allowed_ips = request.form.get("allowed_ips")
+    public_key_serveur = request.form.get("public_key")  
+    allowedIPs = request.form.get("allowedIPs")
     endpoint   = request.form.get("Endpoint")
     keepalive  = request.form.get("Keepalive")
 
+    #Valider l'adresse 
+    if not valide_ip(adresse):
+
+        db = get_db()
+        cursor = db.cursor()
+
+        cursor.execute("SELECT * FROM utilisateur")
+        users = cursor.fetchall()
+
+        cursor.execute("SELECT * FROM tunnel")
+        tunnels = cursor.fetchall()
+
+        db.close()
+
+        return render_template("index.html",
+            erreur="Adresse IP invalide !",
+            users=users,
+            tunnels=tunnels
+        )
+
     # Générer les clés WireGuard
-    private_key_obj = X25519PrivateKey.generate() #crée une clé privée X25519
-    public_key_obj  = private_key_obj.public_key() #La clé publique est calculée automatiquement à partir de la clé privée
+    private_key, public_key = generate_wireguard_keys()
 
-    # Convertir la clé public en Base64
-    private_key = base64.b64encode( #convertit en Base64
-        private_key_obj.private_bytes_raw() #récupère la clé brute(32octets)
-    ).decode("utf-8")  #transforme les bytes en texte lisible
-     
-    # Convertir la clé publique en Base64
-    public_key = base64.b64encode(  
-        public_key_obj.public_bytes_raw()
-    ).decode("utf-8")
-
-# 3. Générer le fichier .conf
-    conf_content = f"""[Interface]
-PrivateKey = {private_key}
-Address = {adresse}
-DNS = {dns}
-
-[Peer]
-PublicKey = {public_key}
-AllowedIPs = {allowed_ips}
-Endpoint = {endpoint}
-PersistentKeepalive = {keepalive}"""
+    # 3. Générer le fichier .conf
+    conf_content = generate_conf(
+        private_key,
+        adresse,
+        dns,
+        public_key,
+        allowedIPs,
+        endpoint,
+    )
 
     # 4. Sauvegarder le fichier
     os.makedirs("configs", exist_ok=True)
@@ -105,7 +194,7 @@ PersistentKeepalive = {keepalive}"""
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO tunnel (idUti, adresse, dns, privateKey, publicKey, allowedIPs, endpoint, keepalive, fichierConf) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (user_id, adresse, dns, private_key, public_key, allowed_ips, endpoint, keepalive, nom_fichier)
+        (user_id, adresse, dns, private_key, public_key, allowedIPs, endpoint, keepalive, nom_fichier)
     )
     db.commit()
     db.close()
@@ -113,19 +202,103 @@ PersistentKeepalive = {keepalive}"""
     # 6. Rediriger
     return redirect(url_for("visite"))
 
+# Bouton télécharger
 @app.route("/download/<int:id>")
 def download(id):
-    #recupérer le nom du fichier depuis le base 
+
+    # Récupérer le nom du fichier depuis la base 
     db = get_db()
     cursor = db.cursor()
     cursor.execute("SELECT fichierConf FROM tunnel WHERE idTunnel = %s",(id,))
     tunnel = cursor.fetchone()
     db.close()
 
-    #envoyer le fichier 
+    # Envoyer le fichier 
     fichier = tunnel[0].strip()  
     chemin = os.path.join("configs", fichier)  
     return send_file(chemin, as_attachment=True)
 
+
+
+# Bouton supprimer
+@app.route("/delete/<int:id>")
+def delete(id):
+
+    db = get_db()
+    cursor = db.cursor()
+
+    # 1. Récupérer le fichier .conf
+    cursor.execute(
+        "SELECT fichierConf FROM tunnel WHERE idTunnel = %s", (id,)
+    )
+    tunnel = cursor.fetchone()
+
+    # 2. Supprimer le fichier .conf
+    if tunnel:
+        chemin = os.path.join("configs", tunnel[0])
+        if os.path.exists(chemin):
+            os.remove(chemin)
+
+    # 3. Supprimer de la base
+    cursor.execute(
+        "DELETE FROM tunnel WHERE idTunnel = %s", (id,)
+    )
+    db.commit()
+    db.close()
+
+    # 4. Rediriger
+    return redirect(url_for("visite"))
+
+
+# Bouton modifier
+@app.route("/modify/<int:id>", methods=["POST"])
+def modify(id):
+
+    adresse   = request.form.get("adresse")
+    dns       = request.form.get("DNS")
+    allowedIPs= request.form.get("allowedIPs")
+    endpoint  = request.form.get("Endpoint")    
+
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE tunnel SET adresse=%s, dns=%s, allowedIPs=%s, endpoint=%s WHERE idTunnel=%s",
+        (adresse, dns, allowedIPs, endpoint, id)
+    )
+    db.commit()
+    db.close()
+
+    return redirect(url_for("visite"))
+#conditions à l'utilisateurs
+def valide_ip(adresse):
+    #séparer l'adresse du masque 
+    parties = adresse.split("/")
+    if len(parties) != 2:
+        return False
+    
+    ip = parties[0]
+    masque = parties[1]
+    #séparer les 4 blocs
+    if not masque.isdigit():
+        return False
+    
+    if int(masque) < 0 or int(masque) > 32:
+        return False
+    
+    blocs = ip.split(".")
+    #vérifie qu'il y  a excatement 4 blocs
+    if len(blocs) != 4:
+        return False
+    
+    #vérifie charque bloc 
+    for bloc in blocs :
+        if not bloc.isdigit(): #doit etre un nombre
+            return False
+        if int(bloc) < 0 or int(bloc) > 255 :
+            return False
+    return True           
+
+
+# Lancer l'application
 if __name__ == "__main__":
     app.run(debug=True)
