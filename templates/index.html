@@ -38,7 +38,7 @@
         </select>
 
         <label>Adresse IP</label>
-        <input type="text" name="adresse" placeholder="0.0.0.0/24">
+        <input type="text" name="adresse" placeholder="0.0.0.0/32">
 
         <label>DNS</label>
         <input type="text" name="DNS" placeholder="1.1.1.1">
@@ -47,10 +47,10 @@
         <input type="text" name="public_key" placeholder="Base64… (44 caractères)">
 
         <label>Allowed IPs</label>
-        <input type="text" name="allowedIPs" placeholder="10.10.10.0/32">
+        <input type="text" name="allowedIPs" placeholder="10.10.10.0/24">
 
         <label>Endpoint</label>
-        <input type="text" name="Endpoint" placeholder="vpn.exemple.com:51820">
+        <input type="text" name="Endpoint" placeholder="IP_ou_nom_de_domaine:port">
 
         <button type="submit">Créer le tunnel</button>
     </form>

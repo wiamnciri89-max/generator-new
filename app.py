@@ -47,6 +47,18 @@ def valider_ip(adresse):
             return False
     return True
 
+# Valider le DNS sans masque
+def valider_dns(dns):
+    blocs = dns.split(".")
+    if len(blocs) != 4:
+        return False
+    for bloc in blocs:
+        if not bloc.isdigit():
+            return False
+        if int(bloc) < 0 or int(bloc) > 255:
+            return False
+    return True
+
 
 # Fonction : Générer les clés WireGuard
 def generate_wireguard_keys():
@@ -176,10 +188,35 @@ def create_tunnel():
     user_id    = request.form.get("user_id")
     adresse    = request.form.get("adresse")
     dns        = request.form.get("DNS")
-    allowedIPs = request.form.get("allowed_ips") 
+    allowedIPs = request.form.get("allowedIPs") 
     endpoint   = request.form.get("Endpoint")
+    
+    if not valider_endpoint(endpoint):
 
-    # Valider l'adresse AVANT d'insérer
+        db = get_db()
+        cursor = db.cursor()
+
+        cursor.execute("SELECT * FROM utilisateur")
+        users = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey,
+                publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
+        tunnels = cursor.fetchall()
+
+        db.close()
+
+        return render_template(
+        "index.html",
+        erreur="Endpoint invalide ! Format attendu : adresse:port (exemple : IP_ou_nom_de_domaine:port)",
+        users=users,
+        tunnels=tunnels,
+        recherche=""
+        )
+
+    # Valider l'adresse 
     if not valider_ip(adresse):
         db = get_db()
         cursor = db.cursor()
@@ -201,16 +238,42 @@ def create_tunnel():
             tunnel_a_modifier=None,
             recherche=""
         )
+    
+    # Valider DNS 
+    if not valider_dns(dns):
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM utilisateur")
+        users = cursor.fetchall()
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey, 
+                   publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
+        tunnels = cursor.fetchall()
+        db.close()
+
+        return render_template(
+            "index.html",
+            erreur="DNS invalide ! Format attendu : 0-255.0-255.0-255.0-255",
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+    
+    # Récupérer les données du formulaire
+    public_key_serveur = request.form.get("public_key")  # clé du serveur    
 
     # Générer les clés WireGuard
-    private_key, public_key = generate_wireguard_keys()
+    private_key, _ = generate_wireguard_keys()
 
     # Générer le fichier .conf
     conf_content = generate_conf(
         private_key,
         adresse,
         dns,
-        public_key,
+        public_key_serveur,
         allowedIPs,
         endpoint,
     )
@@ -227,7 +290,7 @@ def create_tunnel():
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO tunnel (idUti, adresse, dns, privateKey, publicKey, allowedIPs, endpoint, keepalive, fichierConf) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (user_id, adresse, dns, private_key, public_key, allowedIPs, endpoint, 25, nom_fichier)
+        (user_id, adresse, dns, private_key, public_key_serveur, allowedIPs, endpoint, 25, nom_fichier)
     )
     db.commit()
     db.close()
@@ -289,19 +352,130 @@ def modify(id):
 
     adresse    = request.form.get("adresse")
     dns        = request.form.get("DNS")
-    allowedIPs = request.form.get("allowed_ips")
+    allowedIPs = request.form.get("allowedIPs")
     endpoint   = request.form.get("Endpoint")
 
     db = get_db()
     cursor = db.cursor()
+
+    # Charger les données nécessaires pour réafficher la page en cas d'erreur
+    cursor.execute("SELECT * FROM utilisateur")
+    users = cursor.fetchall()
+
+    cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns,
+                privateKey, publicKey,
+                allowedIPs, endpoint,
+                keepalive, fichierConf
+            FROM tunnel
+            """)
+    tunnels = cursor.fetchall()
+
+    if not valider_endpoint(endpoint):
+
+        db = get_db()
+        cursor = db.cursor()
+
+        cursor.execute("SELECT * FROM utilisateur")
+        users = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey,
+                publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
+        tunnels = cursor.fetchall()
+
+        db.close()
+
+        return render_template(
+            "index.html",
+            erreur="Endpoint invalide ! Format attendu : adresse:port (exemple : IP_ou_nom_de_domaine:port)",
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+
+# Valider l'adresse 
+    if not valider_ip(adresse):
+
+        return render_template(
+            "index.html",
+            erreur="Adresse IP invalide ! Format attendu : 0-255.0-255.0-255.0-255/0-32",
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+    
+    # Valider DNS 
+    if not valider_dns(dns):
+        db.close()
+
+        return render_template(
+            "index.html",
+            erreur="DNS invalide ! Format attendu : 0-255.0-255.0-255.0-255",
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+       # Vérifier que le tunnel existe
     cursor.execute(
-        "UPDATE tunnel SET adresse=%s, dns=%s, allowedIPs=%s, endpoint=%s WHERE idTunnel=%s",
+        "SELECT idTunnel FROM tunnel WHERE idTunnel=%s",
+        (id,)
+    )
+
+    tunnel = cursor.fetchone()
+
+    if not tunnel:
+        db.close()
+        return "Tunnel introuvable", 404
+
+    # Mise à jour
+    cursor.execute(
+        """
+        UPDATE tunnel
+        SET adresse=%s,
+            dns=%s,
+            allowedIPs=%s,
+            endpoint=%s
+        WHERE idTunnel=%s
+        """,
         (adresse, dns, allowedIPs, endpoint, id)
     )
+
     db.commit()
     db.close()
-
+    
     return redirect(url_for("visite"))
+
+#valider l'endpoint
+def valider_endpoint(endpoint):
+    #separe l'endpoint en 2 parties 
+    parties = endpoint.split(":")
+
+    #verifier qu'il y a excatement 2 parties 
+    if len(parties) != 2:
+        return False
+    
+    hote = parties[0]
+    port = parties[1]
+
+    #vérifier que l'hote n'est pas vide 
+    if len(hote.strip()) == 0:
+        return False
+    
+    #vérifie que le port est un nombre 
+    if not port.isdigit():
+        return False 
+    
+    #verifiernque le port est entre 1 et 65535
+    if int(port) < 1 or int(port) > 65535 :
+        return False
+    
+    return True
 
 
 # Lancer l'application
