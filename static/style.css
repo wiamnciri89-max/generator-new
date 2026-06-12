@@ -120,3 +120,8 @@ td a:nth-child(3) { background: #f39c12; } /* Modifier */
 td a:hover {
     opacity: 0.8;
 }
+
+/* Animation de disparition du message d'erreur */
+#message-erreur {
+    transition: opacity 0.5s ease;
+}

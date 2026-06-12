@@ -22,9 +22,11 @@
 
 
     <!-- Les conditions -->
-        {% if erreur %}
-    <p style="color:red;">{{ erreur }}</p>
-        {% endif %}
+    {% if erreur %}
+    <p id="message-erreur" style="color:red;">
+        {{ erreur }}
+    </p>
+    {% endif %}
 
     <!-- Formulaire tunnel -->
     <form method="POST" action="/create-tunnel">
@@ -121,6 +123,8 @@
         <a href="/">Annuler</a>
     </form>
     {% endif %}
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 
 </body>
 </html>
