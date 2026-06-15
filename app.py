@@ -191,6 +191,34 @@ def create_tunnel():
     allowedIPs = request.form.get("allowedIPs") 
     endpoint   = request.form.get("Endpoint")
     
+    # Le remlis obligatoires des champs
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT * FROM utilisateur")
+    users = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT idTunnel, idUti, adresse, dns,
+               privateKey, publicKey,
+               allowedIPs, endpoint,
+               keepalive, fichierConf
+        FROM tunnel
+    """)
+    tunnels = cursor.fetchall()
+
+    # Vérifier que tous les champs sont remplis
+    if not all([adresse, dns, allowedIPs, endpoint]):
+
+        return render_template(
+            "index.html",
+            erreur="Tous les champs sont obligatoires !",
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+
     if not valider_endpoint(endpoint):
 
         db = get_db()

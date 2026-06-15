@@ -32,7 +32,6 @@
     <form method="POST" action="/create-tunnel">
         <label>Utilisateur</label>
         <select name="user_id">
-        <!-- Option par défaut non sélectionnable -->
         <option value="" disabled selected>— Sélectionner un utilisateur —</option>
         {% for user in users %}
         <option value="{{ user[0] }}">
@@ -42,19 +41,19 @@
     </select>
 
         <label>Adresse IP</label>
-        <input type="text" name="adresse" placeholder="0.0.0.0/32">
+        <input type="text" name="adresse" placeholder="0.0.0.0/32" required>
 
         <label>DNS</label>
-        <input type="text" name="DNS" placeholder="1.1.1.1">
+        <input type="text" name="DNS" placeholder="1.1.1.1" required>
 
         <label>Public Key serveur</label>
-        <input type="text" name="public_key" placeholder="Base64… (44 caractères)">
+        <input type="text" name="public_key" placeholder="Base64… (44 caractères)" required>
 
         <label>Allowed IPs</label>
-        <input type="text" name="allowedIPs" placeholder="10.10.10.0/24">
+        <input type="text" name="allowedIPs" placeholder="10.10.10.0/24" required>
 
         <label>Endpoint</label>
-        <input type="text" name="Endpoint" placeholder="IP_ou_nom_de_domaine:port">
+        <input type="text" name="Endpoint" placeholder="IP_ou_nom_de_domaine:port" required>
 
         <button type="submit">Créer le tunnel</button>
     </form>
