@@ -3,8 +3,12 @@ import pymysql
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 import base64
 import os
+from flask import flash
+
 
 app = Flask(__name__)
+app.secret_key = "wireguard_secret_key"   
+
 
 # Connexion à la base de données
 def get_db():
@@ -176,6 +180,9 @@ def create_user():
     db.commit()
     db.close()
 
+    # message : uti creer
+    flash("✅ Utilisateur créé avec succès !", "success")
+
     # 3. Rediriger
     return redirect(url_for("visite"))
 
@@ -323,6 +330,9 @@ def create_tunnel():
     db.commit()
     db.close()
 
+    #message : tun creer
+    flash("✅ Tunnel créé avec succès !", "success")
+
     # Rediriger
     return redirect(url_for("visite"))
 
@@ -369,6 +379,9 @@ def delete(id):
     )
     db.commit()
     db.close()
+
+    #message : supprimer 
+    flash("🗑️ Tunnel supprimé !", "success")
 
     # 4. Rediriger
     return redirect(url_for("visite"))
@@ -476,6 +489,9 @@ def modify(id):
 
     db.commit()
     db.close()
+    
+    #message : modifier
+    flash("✏️ Tunnel modifié avec succès !", "success")
     
     return redirect(url_for("visite"))
 

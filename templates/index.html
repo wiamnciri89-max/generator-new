@@ -20,6 +20,10 @@
         <button type="submit">Créer l'utilisateur</button>
     </form>
 
+    <!--Le message de succés-->
+    {% for categorie, message in get_flashed_messages(with_categories=true) %}
+    <p id="flash-message" class="{{ categorie }}">{{ message }}</p>
+    {% endfor %}
 
     <!-- Les conditions -->
     {% if erreur %}

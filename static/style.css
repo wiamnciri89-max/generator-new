@@ -125,3 +125,13 @@ td a:hover {
 #message-erreur {
     transition: opacity 0.5s ease;
 }
+
+/* Le message succes */
+.success {
+    color: green;
+    background-color: #d4edda;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid green;
+}
+

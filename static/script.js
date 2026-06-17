@@ -27,3 +27,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 });
 
+setTimeout(function() {
+        var msg = document.getElementById("flash-message");
+        if (msg) msg.style.display = "none";
+    }, 3000);
