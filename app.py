@@ -331,7 +331,7 @@ def create_tunnel():
     db.close()
 
     #message : tun creer
-    flash("✅ Tunnel créé avec succès !", "success")
+    flash("✅ Tunnel créé avec succès !", "success")         
 
     # Rediriger
     return redirect(url_for("visite"))
@@ -381,7 +381,7 @@ def delete(id):
     db.close()
 
     #message : supprimer 
-    flash("🗑️ Tunnel supprimé !", "success")
+    flash("🗑️ Tunnel supprimé !", "success") 
 
     # 4. Rediriger
     return redirect(url_for("visite"))
@@ -491,7 +491,7 @@ def modify(id):
     db.close()
     
     #message : modifier
-    flash("✏️ Tunnel modifié avec succès !", "success")
+    flash("✏️ Tunnel modifié avec succès !", "success") 
     
     return redirect(url_for("visite"))
 

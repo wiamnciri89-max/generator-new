@@ -26,8 +26,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 });
-
-setTimeout(function() {
-        var msg = document.getElementById("flash-message");
-        if (msg) msg.style.display = "none";
-    }, 3000);
+    // Script pour faire disparaître le message après 3 secondes 
+    setTimeout(function() {
+            var msg = document.getElementById("flash-message");
+            if (msg) msg.style.display = "none";
+        }, 3000);
+        
