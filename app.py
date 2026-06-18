@@ -139,7 +139,7 @@ def visite():
             FROM tunnel
         """)
 
-    tunnels = cursor.fetchall()
+    tunnels = cursor.fetchall() #récupère toutes les lignes d'un ensemble de résultats de requête et renvoie une liste de tuple
     db.close()
 
     # Gestion du bouton "modifier"
