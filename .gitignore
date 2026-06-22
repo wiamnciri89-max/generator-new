@@ -1,0 +1,17 @@
+# Secrets
+.env
+
+# Fichiers de config générés
+configs/
+*.conf
+
+# Environnement virtuel Python
+.venv/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code
+.vscode/
