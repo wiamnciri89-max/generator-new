@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mentions légales — Générateur WireGuard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+
+        <a href="/" class="back-link">← Retour à l'application</a>
+
+        <header>
+            <h1>Mentions légales</h1>
+            <p>Générateur WireGuard — Application de gestion de tunnels VPN</p>
+        </header>
+
+        <div class="section">
+            <h2>Identification</h2>
+            <div class="info-grid">
+                <span class="label">Nom de l'application</span>
+                <span class="value">Générateur WireGuard</span>
+                <span class="label">Réalisé par</span>
+                <span class="value">Nciri Wiam</span>
+                <span class="label">Dans le cadre de</span>
+                <span class="value">Un stage en entreprise</span>
+                <span class="label">Type d'application</span>
+                <span class="value">Application web interne de gestion de tunnels VPN WireGuard</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Objet de l'application</h2>
+            <p>Le Générateur WireGuard est une application web développée dans le cadre d'un stage. Elle permet de gérer des utilisateurs et de générer des configurations de tunnels VPN basés sur le protocole WireGuard.</p>
+            <p>L'application est destinée à un usage interne et restreint. L'accès est protégé par un système d'authentification.</p>
+        </div>
+
+        <div class="section">
+            <h2>Données personnelles</h2>
+            <p>L'application collecte et stocke les données suivantes dans le cadre de son fonctionnement :</p>
+            <p>— Nom, prénom et entreprise des utilisateurs créés dans l'application.</p>
+            <p>— Les configurations réseau associées aux tunnels VPN (adresse IP, DNS, endpoint).</p>
+            <p>Ces données sont stockées dans une base de données MySQL locale et ne sont pas transmises à des tiers.</p>
+            <p>Conformément au RGPD, vous disposez d'un droit d'accès, de rectification et de suppression de vos données.</p>
+        </div>
+
+        <div class="section">
+            <h2>Technologies utilisées</h2>
+            <div class="info-grid">
+                <span class="label">Langage</span>
+                <span class="value">Python 3</span>
+                <span class="label">Framework</span>
+                <span class="value">Flask</span>
+                <span class="label">Base de données</span>
+                <span class="value">MySQL / MariaDB (via XAMPP)</span>
+                <span class="label">Protocole VPN</span>
+                <span class="value">WireGuard (algorithme Curve25519)</span>
+                <span class="label">Hébergement</span>
+                <span class="value">Serveur local interne</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Propriété intellectuelle</h2>
+            <p>L'ensemble du code source et des fonctionnalités de cette application ont été développés par Nciri Wiam dans le cadre d'un stage.</p>
+            <p>WireGuard® est une marque déposée de Jason A. Donenfeld. Cette application utilise le protocole WireGuard mais n'est pas affiliée à ses créateurs.</p>
+        </div>
+
+        <div class="section">
+            <h2>Limitation de responsabilité</h2>
+            <p>Cette application est fournie dans le cadre d'un stage à titre de projet de développement. L'auteur ne saurait être tenu responsable de tout dommage direct ou indirect résultant de l'utilisation de cette application.</p>
+        </div>
+
+        <footer>
+            <p>© 2026 Nciri Wiam — Générateur WireGuard — Projet de stage</p>
+        </footer>
+
+    </div>
+</body>
+</html>

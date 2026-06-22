@@ -678,6 +678,10 @@ def valider_endpoint(endpoint):
     
     return True
 
+@app.route("/mentions-legales.html")
+def mentions_legales():
+    return render_template("mentions-legales.html")
+
 
 # Lancer l'application
 if __name__ == "__main__":
