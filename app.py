@@ -405,19 +405,27 @@ def create_tunnel():
         endpoint,
     )
 
+    # Insérer le tunnel sans fichierConf
+    cursor.execute(
+        "INSERT INTO tunnel (idUti, adresse, dns, privateKey, publicKey, allowedIPs, endpoint, keepalive) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        (user_id, adresse, dns, private_key, public_key_serveur, allowedIPs, endpoint, 25)
+    )
+    db.commit()
+
+    idTunnel = cursor.lastrowid
+
     # Sauvegarder le fichier
     os.makedirs("configs", exist_ok=True)
-    nom_fichier = f"tunnel_{user_id}.conf"
+    nom_fichier = f"tunnel_{idTunnel}.conf"
     chemin = os.path.join("configs", nom_fichier)
     with open(chemin, "w") as f:
         f.write(conf_content)
 
-    # Insérer en base
-    db = get_db()
-    cursor = db.cursor()
+
+    # Mettre à jour la base avec le bon nom
     cursor.execute(
-        "INSERT INTO tunnel (idUti, adresse, dns, privateKey, publicKey, allowedIPs, endpoint, keepalive, fichierConf) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (user_id, adresse, dns, private_key, public_key_serveur, allowedIPs, endpoint, 25, nom_fichier)
+        "UPDATE tunnel SET fichierConf = %s WHERE idTunnel = %s",
+        (nom_fichier, idTunnel)
     )
     db.commit()
     db.close()
