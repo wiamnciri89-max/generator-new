@@ -1,13 +1,30 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import pymysql
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 import base64
 import os
 from flask import flash
+from dotenv import load_dotenv
 
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "wireguard_secret_key"   
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+
+# Configuration flask-login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+# Utilisateur admin unique
+class Admin(UserMixin):
+    def __init__(self):
+        self.id = 1
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Admin()  
 
 
 # Connexion à la base de données
@@ -63,6 +80,32 @@ def valider_dns(dns):
             return False
     return True
 
+# Valider le AllowedIPs
+def valider_allowedIPs(allowedIPs):
+    parties = allowedIPs.split("/")
+    if len(parties) != 2:
+        return False
+    
+    ip = parties[0]
+    masque = parties[1]
+
+    # Masque
+    if int(masque) < 0 or int(masque) > 32:
+        return False
+    
+    # Vérifie les 4 blocs de l'IP
+    blocs = ip.split(".")
+    if len(blocs) != 4:
+        return False
+    
+    for bloc in blocs:
+        if not bloc.isdigit():
+            return False
+        if int(bloc) < 0 or int(bloc) > 255:
+            return False
+    
+    return True
+
 
 # Fonction : Générer les clés WireGuard
 def generate_wireguard_keys():
@@ -97,10 +140,33 @@ AllowedIPs = {allowedIPs}
 Endpoint = {endpoint}
 PersistentKeepalive = 25
 """
+# les routes login/logout
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if username == os.getenv("ADMIN_USERNAME") and password == os.getenv("ADMIN_PASSWORD"):
+            login_user(Admin())
+            return redirect(url_for("visite"))
+        else:
+            return render_template("login.html", erreur="Identifiants incorrects !")
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    flash("👋 Déconnecté avec succès !", "success")
+    return redirect(url_for("login"))
 
 
 # Page principale
 @app.route("/")
+@login_required 
 def visite():
     db = get_db()
     cursor = db.cursor()
@@ -163,6 +229,7 @@ def visite():
 
 # Création utilisateur
 @app.route("/create-user", methods=["POST"])
+@login_required 
 def create_user():
 
     # 1. Récupérer les données
@@ -189,6 +256,7 @@ def create_user():
 
 # Création tunnel
 @app.route("/create-tunnel", methods=["POST"])
+@login_required 
 def create_tunnel():
 
     # Récupérer les données du formulaire
@@ -297,6 +365,30 @@ def create_tunnel():
             recherche=""
         )
     
+    # Valider AllowedIPs
+    if not valider_allowedIPs(allowedIPs):
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM utilisateur")
+        users = cursor.fetchall()
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey, 
+                   publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
+        tunnels = cursor.fetchall()
+        db.close()
+
+        return render_template(
+            "index.html",
+            erreur="AllowedIPs invalide ! Format attendu : 0-255.0-255.0-255.0-255/0-32",          
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+        
+    
     # Récupérer les données du formulaire
     public_key_serveur = request.form.get("public_key")  # clé du serveur    
 
@@ -339,6 +431,7 @@ def create_tunnel():
 
 # Bouton télécharger
 @app.route("/download/<int:id>")
+@login_required 
 def download(id):
 
     # Récupérer le nom du fichier depuis la base
@@ -348,14 +441,29 @@ def download(id):
     tunnel = cursor.fetchone()
     db.close()
 
-    # Envoyer le fichier
-    fichier = tunnel[0].strip()
-    chemin = os.path.join("configs", fichier)
+    if not tunnel:
+        return "Tunnel introuvable", 404
+
+    # 1. Nettoie tout chemin relatif (../../etc/passwd → etc/passwd → "passwd")
+    fichier_safe = os.path.basename(tunnel[0].strip())
+
+    # 2. Construit le chemin absolu
+    dossier_configs = os.path.abspath("configs")
+    chemin = os.path.join(dossier_configs, fichier_safe)
+
+    # 3. Vérifie que le chemin final est bien DANS le dossier configs
+    if not chemin.startswith(dossier_configs + os.sep):
+        return "Accès refusé", 403
+
+    if not os.path.exists(chemin):
+        return "Fichier introuvable", 404
+
     return send_file(chemin, as_attachment=True)
 
 
 # Bouton supprimer
 @app.route("/delete/<int:id>")
+@login_required 
 def delete(id):
 
     db = get_db()
@@ -383,12 +491,29 @@ def delete(id):
     #message : supprimer 
     flash("🗑️ Tunnel supprimé !", "success") 
 
-    # 4. Rediriger
-    return redirect(url_for("visite"))
+    if not tunnel:
+        return "Tunnel introuvable", 404
+
+    # 1. Nettoie tout chemin relatif (../../etc/passwd → etc/passwd → "passwd")
+    fichier_safe = os.path.basename(tunnel[0].strip())
+
+    # 2. Construit le chemin absolu
+    dossier_configs = os.path.abspath("configs")
+    chemin = os.path.join(dossier_configs, fichier_safe)
+
+    # 3. Vérifie que le chemin final est bien DANS le dossier configs
+    if not chemin.startswith(dossier_configs + os.sep):
+        return "Accès refusé", 403
+
+    if not os.path.exists(chemin):
+        return "Fichier introuvable", 404
+
+    return send_file(chemin, as_attachment=True)
 
 
 # Bouton modifier
 @app.route("/modify/<int:id>", methods=["POST"])
+@login_required 
 def modify(id):
 
     adresse    = request.form.get("adresse")
@@ -462,6 +587,30 @@ def modify(id):
             tunnel_a_modifier=None,
             recherche=""
         )
+    
+    # Valider AllowedIPs
+    if not valider_allowedIPs(allowedIPs):
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM utilisateur")
+        users = cursor.fetchall()
+        cursor.execute("""
+            SELECT idTunnel, idUti, adresse, dns, privateKey, 
+                   publicKey, allowedIPs, endpoint, keepalive, fichierConf
+            FROM tunnel
+        """)
+        tunnels = cursor.fetchall()
+        db.close()
+
+        return render_template(
+            "index.html",
+            erreur="AllowedIPs invalide ! Format attendu : 0-255.0-255.0-255.0-255/0-32",          
+            users=users,
+            tunnels=tunnels,
+            tunnel_a_modifier=None,
+            recherche=""
+        )
+
        # Vérifier que le tunnel existe
     cursor.execute(
         "SELECT idTunnel FROM tunnel WHERE idTunnel=%s",
