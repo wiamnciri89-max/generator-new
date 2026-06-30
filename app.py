@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import pymysql
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 import base64
@@ -10,21 +9,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY")
+# Clé de session (utilisée par les messages flash)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key")
 
-# Configuration flask-login
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
-
-# Utilisateur admin unique
-class Admin(UserMixin):
-    def __init__(self):
-        self.id = 1
-
-@login_manager.user_loader
-def load_user(user_id):
-    return Admin()  
 
 
 # Connexion à la base de données
@@ -140,33 +127,8 @@ AllowedIPs = {allowedIPs}
 Endpoint = {endpoint}
 PersistentKeepalive = 25
 """
-# les routes login/logout
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-
-        if username == os.getenv("ADMIN_USERNAME") and password == os.getenv("ADMIN_PASSWORD"):
-            login_user(Admin())
-            return redirect(url_for("visite"))
-        else:
-            return render_template("login.html", erreur="Identifiants incorrects !")
-
-    return render_template("login.html")
-
-
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    flash("👋 Déconnecté avec succès !", "success")
-    return redirect(url_for("login"))
-
-
 # Page principale
 @app.route("/")
-@login_required 
 def visite():
     db = get_db()
     cursor = db.cursor()
@@ -229,7 +191,6 @@ def visite():
 
 # Création utilisateur
 @app.route("/create-user", methods=["POST"])
-@login_required 
 def create_user():
 
     # 1. Récupérer les données
@@ -256,7 +217,6 @@ def create_user():
 
 # Création tunnel
 @app.route("/create-tunnel", methods=["POST"])
-@login_required 
 def create_tunnel():
 
     # Récupérer les données du formulaire
@@ -439,7 +399,6 @@ def create_tunnel():
 
 # Bouton télécharger
 @app.route("/download/<int:id>")
-@login_required 
 def download(id):
 
     # Récupérer le nom du fichier depuis la base
@@ -471,7 +430,6 @@ def download(id):
 
 # Bouton supprimer
 @app.route("/delete/<int:id>")
-@login_required 
 def delete(id):
 
     db = get_db()
@@ -521,7 +479,6 @@ def delete(id):
 
 # Bouton modifier
 @app.route("/modify/<int:id>", methods=["POST"])
-@login_required 
 def modify(id):
 
     adresse    = request.form.get("adresse")
